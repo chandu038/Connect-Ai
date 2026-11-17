@@ -1,0 +1,117 @@
+/* Connect-Ai — background + motion. Import once, e.g. in App.jsx: import "@/styles/effects.css"; */
+
+/* ---------- Background ---------- */
+.app-bg {
+  position: relative;
+  isolation: isolate;
+  background-color: hsl(var(--background));
+}
+
+/* Soft dotted grid */
+.app-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: radial-gradient(hsl(var(--foreground) / 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
+}
+
+/* Floating colour blobs */
+.app-bg::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 40% at 20% 25%, hsl(var(--primary) / 0.14), transparent 70%),
+    radial-gradient(35% 35% at 80% 75%, hsl(262 83% 70% / 0.12), transparent 70%);
+  animation: blob-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes blob-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(3%, -2%, 0) scale(1.05); }
+  100% { transform: translate3d(-2%, 3%, 0) scale(1); }
+}
+
+/* ---------- Entrance animations ---------- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.msg-enter {
+  animation: fade-up 0.35s ease-out both;
+}
+
+.stagger > * {
+  animation: fade-up 0.5s ease-out both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.00s; }
+.stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.stagger > *:nth-child(4) { animation-delay: 0.24s; }
+.stagger > *:nth-child(5) { animation-delay: 0.32s; }
+
+/* ---------- Typing indicator ---------- */
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ---------- Lift on hover (cards only, no icon movement) ---------- */
+.lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -12px hsl(var(--foreground) / 0.25);
+}
+
+/* ---------- Password toggle: keep icon perfectly still ---------- */
+.pw-toggle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.pw-toggle:hover { color: hsl(var(--foreground)); }
+.pw-toggle:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+  border-radius: 0.375rem;
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .app-bg::after,
+  .msg-enter,
+  .stagger > *,
+  .typing-dot {
+    animation: none !important;
+  }
+  .lift:hover { transform: none; }
+}
