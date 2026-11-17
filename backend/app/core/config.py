@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
 
     GOOGLE_CLIENT_ID: str | None = None
-    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_CLIENT_SECRET: str | None = None
 
     # ======================================
     # OFFICIAL WEB SEARCH
