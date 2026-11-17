@@ -115,8 +115,8 @@ async def health_check():
 # =====================================================
 
 origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "https://frontend-navy-five-ma6haxbaua.vercel.app/",
+    "https://connect-ai-b3b5.onrender.com/",
 ]
 
 # Wrap the entire FastAPI application.
