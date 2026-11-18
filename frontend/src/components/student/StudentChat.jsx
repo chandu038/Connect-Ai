@@ -7,6 +7,8 @@ import {
   Award,
   Bot,
   Building2,
+  ChevronDown,
+  ChevronUp,
   GraduationCap,
   Loader2,
   Mic,
@@ -37,6 +39,9 @@ const VOICE_CONFIG = {
   initialSilenceTimeout: 12000,
   minimumAudioSize: 300,
 };
+
+// Set to true to resume listening automatically after each spoken answer.
+const AUTO_CONTINUE_VOICE = false;
 
 const TELUGU_PATTERN = /[\u0C00-\u0C7F]/;
 
@@ -79,9 +84,13 @@ function detectTypedLanguage(text) {
   return TELUGU_PATTERN.test(String(text || "")) ? "te-IN" : "en-IN";
 }
 
-function resolveSpeechLanguage(transcription, recognizedText, selectedLanguage) {
+function resolveSpeechLanguage(
+  transcription,
+  recognizedText,
+  selectedLanguage,
+) {
   const detected = String(
-    transcription?.language_code || transcription?.detected_language || ""
+    transcription?.language_code || transcription?.detected_language || "",
   ).toLowerCase();
 
   if (detected.startsWith("te")) return "te-IN";
@@ -105,7 +114,7 @@ const AssistantAvatar = memo(function AssistantAvatar() {
   return (
     <Avatar className="h-8 w-8 shrink-0">
       <AvatarFallback className="bg-primary/10 text-primary">
-        <Bot className="h-4 w-4" />
+        <Bot className="h-4 w-4" aria-hidden="true" />
       </AvatarFallback>
     </Avatar>
   );
@@ -113,10 +122,14 @@ const AssistantAvatar = memo(function AssistantAvatar() {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-start gap-2 sm:gap-3" role="status" aria-live="polite">
+    <div
+      className="flex items-start gap-2 sm:gap-3"
+      role="status"
+      aria-live="polite"
+    >
       <AssistantAvatar />
       <Card className="flex-row items-center gap-2 rounded-2xl rounded-tl-sm px-4 py-3 shadow-none">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
         <span className="text-xs text-muted-foreground">
           Connect-Ai is preparing an answer…
         </span>
@@ -131,7 +144,7 @@ function Welcome({ user, onSend, loading }) {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center gap-6 py-6 text-center sm:py-14">
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary sm:h-14 sm:w-14">
-        <Sparkles className="h-6 w-6 sm:h-7 sm:w-7" />
+        <Sparkles className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
       </div>
 
       <div className="space-y-2">
@@ -156,7 +169,10 @@ function Welcome({ user, onSend, loading }) {
               onClick={() => onSend(starter.question)}
               className="h-auto justify-start gap-3 rounded-xl p-3 text-left whitespace-normal sm:flex-col sm:items-start sm:p-4"
             >
-              <Icon className="h-5 w-5 shrink-0 text-primary" />
+              <Icon
+                className="h-5 w-5 shrink-0 text-primary"
+                aria-hidden="true"
+              />
               <span className="font-medium">{starter.title}</span>
             </Button>
           );
@@ -180,7 +196,8 @@ const AnswerSources = memo(function AnswerSources({ sources }) {
       <ul className="flex flex-col gap-1.5">
         {sources.map((source, index) => {
           const citation = source.citation || `[${index + 1}]`;
-          const title = source.document_title || source.title || "College source";
+          const title =
+            source.document_title || source.title || "College source";
           const key = `${citation}-${index}`;
 
           if (
@@ -216,33 +233,56 @@ const AnswerSources = memo(function AnswerSources({ sources }) {
   );
 });
 
+// Follow-ups stay collapsed until the student asks to see them.
 const Followups = memo(function Followups({ questions, onSend, loading }) {
+  const [open, setOpen] = useState(false);
+
   if (!questions?.length) return null;
 
   return (
     <div className="space-y-2">
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Sparkles className="sparkle-pulse h-3 w-3 text-primary" />
-        You can also ask
-      </p>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex min-h-9 items-center gap-1.5 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Sparkles
+          className="sparkle-pulse h-3 w-3 text-primary"
+          aria-hidden="true"
+        />
+        {open
+          ? "Hide related questions"
+          : `Show ${questions.length} related question${questions.length > 1 ? "s" : ""}`}
+        {open ? (
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+      </button>
 
-      <div className="flex flex-wrap gap-2">
-        {questions.map((question, index) => (
-          <Button
-            key={`${question}-${index}`}
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => onSend(question)}
-            style={{ animationDelay: `${index * 80}ms` }}
-            className="followup-chip group relative h-auto max-w-full overflow-hidden whitespace-normal rounded-xl py-2 text-left animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both"
-          >
-            <Sparkles className="followup-chip-spark absolute right-1.5 top-1.5 h-3 w-3 text-primary opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:scale-110" />
-            <span className="relative z-10 pr-4">{question}</span>
-          </Button>
-        ))}
-      </div>
+      {open && (
+        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-300 sm:flex-row sm:flex-wrap">
+          {questions.map((question, index) => (
+            <Button
+              key={`${question}-${index}`}
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => onSend(question)}
+              style={{ animationDelay: `${index * 80}ms` }}
+              className="followup-chip group relative h-auto max-w-full overflow-hidden whitespace-normal rounded-xl py-2 text-left animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both"
+            >
+              <Sparkles
+                className="followup-chip-spark absolute right-1.5 top-1.5 h-3 w-3 text-primary opacity-0 transition-all duration-300 group-hover:scale-110 group-hover:opacity-100"
+                aria-hidden="true"
+              />
+              <span className="relative z-10 pr-4">{question}</span>
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -268,9 +308,13 @@ const AssistantMessage = memo(function AssistantMessage({
   onSend,
   loading,
   showFollowups,
+  registerAnswer,
 }) {
   return (
-    <div className="flex items-start gap-2 sm:gap-3">
+    <div
+      ref={(element) => registerAnswer(message.id, element)}
+      className="flex scroll-mt-3 items-start gap-2 sm:gap-3"
+    >
       <AssistantAvatar />
 
       <div className="min-w-0 flex-1 space-y-3 sm:max-w-[85%]">
@@ -299,9 +343,9 @@ const AssistantMessage = memo(function AssistantMessage({
                   aria-pressed={isSpeaking}
                 >
                   {isSpeaking ? (
-                    <VolumeX className="h-4 w-4" />
+                    <VolumeX className="h-4 w-4" aria-hidden="true" />
                   ) : (
-                    <Volume2 className="h-4 w-4" />
+                    <Volume2 className="h-4 w-4" aria-hidden="true" />
                   )}
                   {isSpeaking ? "Stop" : "Listen"}
                 </Button>
@@ -360,13 +404,17 @@ export default function StudentChat({
 
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const answerElementsRef = useRef({});
+  const lastAnswerIdRef = useRef(null);
 
   onSendRef.current = onSend;
 
   const latestAssistantIndex = useMemo(
     () => messages.findLastIndex((item) => item.role === "assistant"),
-    [messages]
+    [messages],
   );
+
+  const latestAssistantId = messages[latestAssistantIndex]?.id ?? null;
 
   const canSend = !loading && !voiceActive && question.trim().length > 0;
 
@@ -376,6 +424,16 @@ export default function StudentChat({
       activeRef.current &&
       sessionRef.current === sessionId
     );
+  }
+
+  function registerAnswer(id, element) {
+    if (!id) return;
+
+    if (element) {
+      answerElementsRef.current[id] = element;
+    } else {
+      delete answerElementsRef.current[id];
+    }
   }
 
   // ========================================
@@ -412,6 +470,7 @@ export default function StudentChat({
     if (recorderRef.current) {
       const recorder = recorderRef.current;
       recorderRef.current = null;
+
       if (recorder.state !== "inactive") {
         try {
           recorder.stop();
@@ -473,7 +532,12 @@ export default function StudentChat({
     setVoiceStatus("speaking");
 
     try {
-      const blob = await generateVoice(text, token, language, controller.signal);
+      const blob = await generateVoice(
+        text,
+        token,
+        language,
+        controller.signal,
+      );
 
       if (
         !mountedRef.current ||
@@ -491,6 +555,7 @@ export default function StudentChat({
 
       const completed = await new Promise((resolve, reject) => {
         let settled = false;
+
         const finish = (value) => {
           if (settled) return;
           settled = true;
@@ -537,13 +602,13 @@ export default function StudentChat({
       const transcription = await transcribeAudio(
         blob,
         token,
-        voiceLanguage === "auto" ? "unknown" : voiceLanguage
+        voiceLanguage === "auto" ? "unknown" : voiceLanguage,
       );
 
       if (!isCurrent(sessionId)) return;
 
       const recognizedText = String(
-        transcription?.transcript || transcription?.text || ""
+        transcription?.transcript || transcription?.text || "",
       ).trim();
 
       if (!recognizedText) throw new Error("No speech was recognized.");
@@ -551,7 +616,7 @@ export default function StudentChat({
       const language = resolveSpeechLanguage(
         transcription,
         recognizedText,
-        voiceLanguage
+        voiceLanguage,
       );
 
       setDetectedLanguage(language);
@@ -576,7 +641,13 @@ export default function StudentChat({
         return;
       }
 
-      await startListening(sessionId);
+      // Stop after the answer so the student can read it.
+      // Set AUTO_CONTINUE_VOICE = true to keep listening.
+      if (AUTO_CONTINUE_VOICE) {
+        await startListening(sessionId);
+      } else {
+        stopConversation();
+      }
     } catch (error) {
       if (!isCurrent(sessionId)) return;
       toast.error(error.message || "Voice conversation failed.");
@@ -620,7 +691,8 @@ export default function StudentChat({
       recorderRef.current = recorder;
       chunksRef.current = [];
 
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext;
       const context = new AudioContextClass();
       audioContextRef.current = context;
 
@@ -682,7 +754,10 @@ export default function StudentChat({
           lastSpeechAt = now;
         }
 
-        if (speechStarted && now - lastSpeechAt > VOICE_CONFIG.silenceDuration) {
+        if (
+          speechStarted &&
+          now - lastSpeechAt > VOICE_CONFIG.silenceDuration
+        ) {
           finishRecording();
           return;
         }
@@ -706,7 +781,7 @@ export default function StudentChat({
       toast.error(
         error.name === "NotAllowedError"
           ? "Please allow microphone access."
-          : error.message || "Unable to start the microphone."
+          : error.message || "Unable to start the microphone.",
       );
 
       stopConversation();
@@ -770,8 +845,25 @@ export default function StudentChat({
   // LIFECYCLE
   // ========================================
 
+  // Scroll to the START of a new answer so the student reads it first.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (!latestAssistantId || lastAnswerIdRef.current === latestAssistantId)
+      return;
+
+    const element = answerElementsRef.current[latestAssistantId];
+    if (!element) return;
+
+    lastAnswerIdRef.current = latestAssistantId;
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [latestAssistantId]);
+
+  // Keep the student's own question and the "preparing" indicator in view.
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+
+    if (lastMessage?.role === "user" || loading) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
   }, [messages.length, loading]);
 
   useEffect(() => {
@@ -818,8 +910,9 @@ export default function StudentChat({
                 onSend={submit}
                 loading={loading || voiceActive}
                 showFollowups={index === latestAssistantIndex}
+                registerAnswer={registerAnswer}
               />
-            )
+            ),
           )}
 
           {loading && <TypingIndicator />}
@@ -867,7 +960,7 @@ export default function StudentChat({
           <div
             className={cn(
               "flex items-end gap-1.5 rounded-2xl border bg-background p-1.5 shadow-sm transition-colors sm:gap-2 sm:p-2",
-              voiceActive && "border-red-400/60"
+              voiceActive && "border-red-400/60",
             )}
           >
             <Textarea
@@ -903,13 +996,15 @@ export default function StudentChat({
               onClick={toggleConversation}
               className="h-10 w-10 shrink-0 rounded-xl"
               aria-label={
-                voiceActive ? "Stop voice conversation" : "Start voice conversation"
+                voiceActive
+                  ? "Stop voice conversation"
+                  : "Start voice conversation"
               }
             >
               {voiceActive ? (
-                <Square className="h-4 w-4" />
+                <Square className="h-4 w-4" aria-hidden="true" />
               ) : (
-                <Mic className="h-4 w-4" />
+                <Mic className="h-4 w-4" aria-hidden="true" />
               )}
             </Button>
 
@@ -922,9 +1017,9 @@ export default function StudentChat({
               aria-label="Send question"
             >
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
               ) : (
-                <ArrowUp className="h-4 w-4" />
+                <ArrowUp className="h-4 w-4" aria-hidden="true" />
               )}
             </Button>
           </div>
@@ -940,7 +1035,7 @@ export default function StudentChat({
           {voiceActive && (
             <div className="flex justify-center">
               <Badge variant="secondary" className="gap-2">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
                 Voice conversation active
               </Badge>
             </div>
