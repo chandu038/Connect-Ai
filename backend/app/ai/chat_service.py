@@ -29,6 +29,58 @@ UNCLEAR_ANSWER = (
 )
 ACKNOWLEDGMENT_REPLY = "Okay! Ask me anything about SIETK whenever you're ready."
 
+SITE_URL = "https://www.sietk.org"
+
+# Fill phone and email only from verified SIETK pages. Empty values are left out of the reply.
+OFFICE_CONTACTS = {
+    "admissions": {"office": "admissions office", "phone": "", "email": ""},
+    "placements": {"office": "training and placement cell", "phone": "", "email": ""},
+    "hostel": {"office": "hostel administration", "phone": "", "email": ""},
+    "examinations": {"office": "examination branch", "phone": "", "email": ""},
+    "facilities": {"office": "college administrative office", "phone": "", "email": ""},
+    "academics": {"office": "head of the relevant department", "phone": "", "email": ""},
+    "general": {"office": "college office", "phone": "", "email": ""},
+}
+
+FALLBACK_HINTS = {
+    "admissions": (
+        "Counselling codes and admission schedules change every year, and the current "
+        "notification isn't in the indexed documents."
+    ),
+    "placements": (
+        "Placement records are published by year and company, and the matching record "
+        "wasn't found."
+    ),
+    "hostel": "Hostel rules and fees are confirmed only from published hostel information.",
+    "examinations": (
+        "Exam timetables and results are published per semester, and the matching "
+        "notice wasn't found."
+    ),
+    "facilities": (
+        "Campus facilities are confirmed only when a published page lists them, and no "
+        "such page was found."
+    ),
+    "academics": (
+        "Department details change by academic year, and the matching record wasn't found."
+    ),
+    "general": "The published documents don't state this detail.",
+}
+
+TOPIC_KEYWORDS = [
+    ("admissions", (
+        "admission", "counsel", "eamcet", "eapcet", "apply", "eligib",
+        "fee", "tuition", "scholarship",
+    )),
+    ("placements", ("placement", "placed", "recruit", "package", "compan", "tcs", "infosys", "wipro")),
+    ("hostel", ("hostel", "mess", "accommodation")),
+    ("examinations", ("exam", "result", "timetable", "syllabus", "calendar", "semester")),
+    ("facilities", (
+        "pool", "swim", "sport", "ground", "library", "transport", "bus", "canteen",
+        "campus", "facilit", "wifi", "gym",
+    )),
+    ("academics", ("department", "faculty", "hod", "course", "branch", "professor")),
+]
+
 INTENT_PROMPT = """Classify ONLY the latest student's message for an SIETK information chatbot.
 Labels: COLLEGE, OUT_OF_SCOPE, UNCLEAR.
 COLLEGE: any request about the institute, including subjects not listed in code.
@@ -257,13 +309,36 @@ def resolve_followup_question(llm, question: str, history: list[dict]) -> str:
     return question
 
 
+def detect_topic(question: str) -> str:
+    text = question.casefold()
+    for topic, words in TOPIC_KEYWORDS:
+        if any(re.search(rf"\b{re.escape(word)}", text) for word in words):
+            return topic
+    return "general"
+
+
+def contact_sentence(topic: str) -> str:
+    entry = OFFICE_CONTACTS.get(topic) or OFFICE_CONTACTS["general"]
+    details = [f"the {entry['office']}"]
+    if entry.get("phone"):
+        details.append(f"phone {entry['phone']}")
+    if entry.get("email"):
+        details.append(f"email {entry['email']}")
+    return "Contact " + ", ".join(details) + " for confirmation."
+
+
 def create_knowledge_fallback(question: str) -> dict:
-    """Describe what could not be confirmed, using the student's own words."""
+    topic = detect_topic(question)
     safe_question = " ".join(question.split())[:180]
+
     answer = (
-        f"I couldn't verify an answer to **{safe_question}** using the available "
-        "SIETK documents or approved official website results.\n\n"
-        "Please check the relevant SIETK department or office for confirmation."
+        f"1. **Not found:** I couldn't find a verified answer to **{safe_question}** "
+        "in the published SIETK documents or the official website.\n\n"
+        f"2. **Why:** {FALLBACK_HINTS[topic]}\n\n"
+        f"3. **Check here:** {SITE_URL}\n\n"
+        f"4. **Contact:** {contact_sentence(topic)}\n\n"
+        "5. **Narrow it down:** Tell me the academic year, department or document name, "
+        "and I'll search again."
     )
     return create_response(answer, needs_support=True, followups=SUGGESTED_QUESTIONS.copy())
 
