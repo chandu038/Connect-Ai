@@ -1,4 +1,10 @@
 
+"""
+Official SIETK website search.
+
+Uses Tavily and restricts results to approved domains.
+"""
+
 import logging
 from urllib.parse import urlsplit
 
@@ -18,21 +24,17 @@ def normalized_allowed_domains() -> list[str]:
     for raw in settings.web_allowed_domains:
         domain = raw.strip().lower().strip(".")
 
-        # Only domain names are accepted here,
-        # not full URLs, paths, or wildcards.
         if not domain:
             continue
 
         if any(
-            char in domain
-            for char in ("/", ":", "*", " ")
+            character in domain
+            for character in ("/", ":", "*", " ")
         ):
             continue
 
-        if domain.startswith("."):
-            continue
-
-        domains.append(domain)
+        if domain not in domains:
+            domains.append(domain)
 
     return domains
 
@@ -53,8 +55,7 @@ def is_approved_url(
         if parsed.port not in (None, 443):
             return False
 
-        hostname = (parsed.hostname or "").lower()
-        hostname = hostname.rstrip(".")
+        hostname = (parsed.hostname or "").lower().rstrip(".")
 
         if not hostname:
             return False
@@ -73,22 +74,10 @@ def search_official_web(
     question: str,
     max_results: int | None = None,
 ) -> list[dict]:
-    """
-    Search approved public websites using Tavily.
-
-    Returns verified-host search-result excerpts.
-
-    This does not assert that a website's content
-    is accurate or currently valid; the chat model
-    must assess the supplied evidence.
-
-    This service never uses the broad public web
-    without an explicit domain allowlist.
-    """
 
     if not settings.web_search_ready:
         logger.info(
-            "Web Search is disabled or not configured"
+            "Official website search is not configured"
         )
         return []
 
@@ -97,14 +86,15 @@ def search_official_web(
     if not allowed_domains:
         return []
 
-    query = question.strip()[:400]
+    question = question.strip()[:400]
 
-    if not query:
+    if not question:
         return []
 
+    # Do not force "admissions" into unrelated queries.
     query = (
         f"{settings.COLLEGE_OFFICIAL_NAME.strip()} "
-        f"admissions {query}"
+        f"{question}"
     )[:500]
 
     result_limit = max(
@@ -133,6 +123,7 @@ def search_official_web(
             timeout=settings.WEB_SEARCH_TIMEOUT_SECONDS,
             follow_redirects=False,
         ) as client:
+
             response = client.post(
                 TAVILY_ENDPOINT,
                 headers={
@@ -147,27 +138,24 @@ def search_official_web(
             response.raise_for_status()
             data = response.json()
 
-    except (
-        httpx.HTTPError,
-        ValueError,
-    ):
+    except (httpx.HTTPError, ValueError):
         logger.exception(
-            "Approved-domain web search failed"
+            "Official SIETK website search failed"
         )
         return []
 
     if not isinstance(data, dict):
         return []
 
-    raw_results = data.get("results")
+    results = data.get("results")
 
-    if not isinstance(raw_results, list):
+    if not isinstance(results, list):
         return []
 
     cleaned = []
     seen_urls = set()
 
-    for item in raw_results:
+    for item in results:
         if not isinstance(item, dict):
             continue
 
