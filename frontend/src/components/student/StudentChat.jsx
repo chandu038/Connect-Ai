@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-
+import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 
 import {
@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Loader2,
   Mic,
+  Pencil,
   Sparkles,
   Square,
   Volume2,
@@ -28,9 +29,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-// ==========================================
+// ======================================================
 // CONFIGURATION
-// ==========================================
+// ======================================================
 
 const VOICE_CONFIG = {
   speechThreshold: 0.012,
@@ -40,26 +41,24 @@ const VOICE_CONFIG = {
   minimumAudioSize: 300,
 };
 
-// Set to true to resume listening automatically after each spoken answer.
 const AUTO_CONTINUE_VOICE = false;
-
 const TELUGU_PATTERN = /[\u0C00-\u0C7F]/;
 
 const STARTERS = [
   {
     icon: GraduationCap,
-    title: "Admission eligibility",
-    question: "What is the eligibility for B.Tech admission?",
+    title: "Courses & departments",
+    question: "What courses are offered at SIETK?",
   },
   {
     icon: Wallet,
-    title: "Courses & fees",
-    question: "What is the annual tuition fee for CSE?",
+    title: "Fees & scholarships",
+    question: "What is the tuition fee for CSE?",
   },
   {
     icon: Award,
-    title: "Scholarships",
-    question: "What scholarships are available?",
+    title: "Placements",
+    question: "What are the SIETK placement details?",
   },
   {
     icon: Building2,
@@ -76,9 +75,9 @@ const STATUS_TEXT = {
   speaking: "Connect-Ai is speaking…",
 };
 
-// ==========================================
+// ======================================================
 // LANGUAGE HELPERS
-// ==========================================
+// ======================================================
 
 function detectTypedLanguage(text) {
   return TELUGU_PATTERN.test(String(text || "")) ? "te-IN" : "en-IN";
@@ -95,20 +94,61 @@ function resolveSpeechLanguage(
 
   if (detected.startsWith("te")) return "te-IN";
   if (detected.startsWith("en")) return "en-IN";
-  if (TELUGU_PATTERN.test(recognizedText)) return "te-IN";
-  if (selectedLanguage === "te-IN") return "te-IN";
+
+  if (TELUGU_PATTERN.test(recognizedText)) {
+    return "te-IN";
+  }
+
+  if (selectedLanguage === "te-IN") {
+    return "te-IN";
+  }
+
   return "en-IN";
 }
 
 function getAnswerLanguage(message) {
-  if (message?.language_code === "te-IN") return "te-IN";
-  if (message?.language_code === "en-IN") return "en-IN";
+  if (message?.language_code === "te-IN") {
+    return "te-IN";
+  }
+
+  if (message?.language_code === "en-IN") {
+    return "en-IN";
+  }
+
   return TELUGU_PATTERN.test(message?.content || "") ? "te-IN" : "en-IN";
 }
 
-// ==========================================
-// SMALL UI PIECES
-// ==========================================
+// ======================================================
+// MARKDOWN NORMALIZATION
+// ======================================================
+
+function normalizeAssistantMarkdown(value) {
+  let text = String(value ?? "").trim();
+
+  if (!text) return "";
+
+  // Convert escaped Markdown produced by the LLM.
+  text = text.replace(/\\\*/g, "*");
+  text = text.replace(/(\d{1,2})\\\./g, "$1.");
+
+  // Separate numbered points that appear on one line.
+  text = text.replace(/\s+(?=(?:[2-9]|1\d)\.\s)/g, "\n\n");
+
+  return text;
+}
+
+function getSpeechText(value) {
+  return normalizeAssistantMarkdown(value)
+    .replace(/\[\d+\]/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/^\s*\d+\.\s/gm, "")
+    .trim()
+    .slice(0, 2500);
+}
+
+// ======================================================
+// ASSISTANT AVATAR
+// ======================================================
 
 const AssistantAvatar = memo(function AssistantAvatar() {
   return (
@@ -120,6 +160,10 @@ const AssistantAvatar = memo(function AssistantAvatar() {
   );
 });
 
+// ======================================================
+// TYPING INDICATOR
+// ======================================================
+
 function TypingIndicator() {
   return (
     <div
@@ -128,8 +172,10 @@ function TypingIndicator() {
       aria-live="polite"
     >
       <AssistantAvatar />
+
       <Card className="flex-row items-center gap-2 rounded-2xl rounded-tl-sm px-4 py-3 shadow-none">
-        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+        <Loader2 className="h-4 w-4 animate-spin" />
+
         <span className="text-xs text-muted-foreground">
           Connect-Ai is preparing an answer…
         </span>
@@ -137,6 +183,10 @@ function TypingIndicator() {
     </div>
   );
 }
+
+// ======================================================
+// WELCOME SCREEN
+// ======================================================
 
 function Welcome({ user, onSend, loading }) {
   const firstName = user?.name?.split(" ")[0] || "Student";
@@ -151,15 +201,17 @@ function Welcome({ user, onSend, loading }) {
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
           Hello, {firstName}
         </h2>
+
         <p className="text-sm text-muted-foreground">
-          Ask Connect-Ai about admissions, fees, courses, scholarships, and
-          campus facilities.
+          Ask Connect-Ai about SIETK courses, admissions, departments, faculty,
+          placements, hostels, and academics.
         </p>
       </div>
 
       <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {STARTERS.map((starter) => {
           const Icon = starter.icon;
+
           return (
             <Button
               key={starter.title}
@@ -173,6 +225,7 @@ function Welcome({ user, onSend, loading }) {
                 className="h-5 w-5 shrink-0 text-primary"
                 aria-hidden="true"
               />
+
               <span className="font-medium">{starter.title}</span>
             </Button>
           );
@@ -182,12 +235,14 @@ function Welcome({ user, onSend, loading }) {
   );
 }
 
-// ==========================================
-// MESSAGE PARTS
-// ==========================================
+// ======================================================
+// SOURCES
+// ======================================================
 
 const AnswerSources = memo(function AnswerSources({ sources }) {
-  if (!Array.isArray(sources) || sources.length === 0) return null;
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return null;
+  }
 
   return (
     <div className="space-y-2 border-t pt-3">
@@ -196,15 +251,18 @@ const AnswerSources = memo(function AnswerSources({ sources }) {
       <ul className="flex flex-col gap-1.5">
         {sources.map((source, index) => {
           const citation = source.citation || `[${index + 1}]`;
+
           const title =
             source.document_title || source.title || "College source";
+
           const key = `${citation}-${index}`;
 
-          if (
+          const isWebLink =
             source.source_type === "web" &&
             typeof source.url === "string" &&
-            /^https:\/\//i.test(source.url)
-          ) {
+            /^https:\/\//i.test(source.url);
+
+          if (isWebLink) {
             return (
               <li key={key}>
                 <a
@@ -233,11 +291,16 @@ const AnswerSources = memo(function AnswerSources({ sources }) {
   );
 });
 
-// Follow-ups stay collapsed until the student asks to see them.
+// ======================================================
+// FOLLOW-UP QUESTIONS
+// ======================================================
+
 const Followups = memo(function Followups({ questions, onSend, loading }) {
   const [open, setOpen] = useState(false);
 
-  if (!questions?.length) return null;
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return null;
+  }
 
   return (
     <div className="space-y-2">
@@ -245,40 +308,41 @@ const Followups = memo(function Followups({ questions, onSend, loading }) {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex min-h-9 items-center gap-1.5 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-9 items-center gap-1.5 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
-        <Sparkles
-          className="sparkle-pulse h-3 w-3 text-primary"
-          aria-hidden="true"
-        />
+        <Sparkles className="h-3 w-3 text-primary" />
+
         {open
           ? "Hide related questions"
-          : `Show ${questions.length} related question${questions.length > 1 ? "s" : ""}`}
+          : `Show ${questions.length} related question${
+              questions.length > 1 ? "s" : ""
+            }`}
+
         {open ? (
-          <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+          <ChevronUp className="h-3.5 w-3.5" />
         ) : (
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+          <ChevronDown className="h-3.5 w-3.5" />
         )}
       </button>
 
       {open && (
-        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-300 sm:flex-row sm:flex-wrap">
-          {questions.map((question, index) => (
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {questions.map((item, index) => (
             <Button
-              key={`${question}-${index}`}
+              key={`${item}-${index}`}
               type="button"
               variant="outline"
               size="sm"
               disabled={loading}
-              onClick={() => onSend(question)}
-              style={{ animationDelay: `${index * 80}ms` }}
-              className="followup-chip group relative h-auto max-w-full overflow-hidden whitespace-normal rounded-xl py-2 text-left animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both"
+              onClick={() => onSend(item)}
+              className="h-auto max-w-full whitespace-normal rounded-xl py-2 text-left"
             >
               <Sparkles
-                className="followup-chip-spark absolute right-1.5 top-1.5 h-3 w-3 text-primary opacity-0 transition-all duration-300 group-hover:scale-110 group-hover:opacity-100"
+                className="mr-2 h-3 w-3 shrink-0 text-primary"
                 aria-hidden="true"
               />
-              <span className="relative z-10 pr-4">{question}</span>
+
+              <span>{item}</span>
             </Button>
           ))}
         </div>
@@ -287,19 +351,88 @@ const Followups = memo(function Followups({ questions, onSend, loading }) {
   );
 });
 
-// ==========================================
-// CHAT MESSAGES
-// ==========================================
+// ======================================================
+// USER MESSAGE WITH EDIT ACTION
+// ======================================================
 
-const UserMessage = memo(function UserMessage({ message }) {
+const UserMessage = memo(function UserMessage({ message, onEdit, loading }) {
   return (
-    <div className="flex justify-end">
+    <div className="flex justify-end gap-1.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={loading}
+        onClick={() => onEdit(message)}
+        aria-label="Edit and resend this question"
+        title="Edit and resend"
+        className="mt-1 h-8 w-8 shrink-0"
+      >
+        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+      </Button>
+
       <div className="max-w-[88%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground sm:max-w-[80%]">
         {message.content}
       </div>
     </div>
   );
 });
+
+// ======================================================
+// MARKDOWN ANSWER RENDERER
+// ======================================================
+
+const MarkdownAnswer = memo(function MarkdownAnswer({ content }) {
+  return (
+    <div className="min-w-0 break-words text-sm leading-6 sm:leading-7">
+      <ReactMarkdown
+        skipHtml
+        components={{
+          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+
+          ol: ({ children }) => (
+            <ol className="my-2 list-decimal space-y-2 pl-5">{children}</ol>
+          ),
+
+          ul: ({ children }) => (
+            <ul className="my-2 list-disc space-y-2 pl-5">{children}</ul>
+          ),
+
+          li: ({ children }) => <li className="pl-1">{children}</li>,
+
+          strong: ({ children }) => (
+            <strong className="font-semibold">{children}</strong>
+          ),
+
+          a: ({ href, children }) => {
+            const valid = typeof href === "string" && /^https:\/\//i.test(href);
+
+            return valid ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2"
+              >
+                {children}
+              </a>
+            ) : (
+              <span>{children}</span>
+            );
+          },
+
+          img: () => null,
+        }}
+      >
+        {normalizeAssistantMarkdown(content)}
+      </ReactMarkdown>
+    </div>
+  );
+});
+
+// ======================================================
+// ASSISTANT MESSAGE
+// ======================================================
 
 const AssistantMessage = memo(function AssistantMessage({
   message,
@@ -320,15 +453,14 @@ const AssistantMessage = memo(function AssistantMessage({
       <div className="min-w-0 flex-1 space-y-3 sm:max-w-[85%]">
         <Card className="gap-0 rounded-2xl rounded-tl-sm py-0 shadow-none">
           <CardContent className="space-y-3 p-3 sm:p-4">
-            <div className="whitespace-pre-wrap break-words text-sm leading-6 sm:leading-7">
-              {message.content}
-            </div>
+            <MarkdownAnswer content={message.content} />
 
             <AnswerSources sources={message.sources} />
 
             {message.needs_support && (
               <p className="text-xs text-muted-foreground">
-                Please contact admission support if more confirmation is needed.
+                Please contact the relevant SIETK department or admission
+                support if more confirmation is needed.
               </p>
             )}
 
@@ -343,10 +475,11 @@ const AssistantMessage = memo(function AssistantMessage({
                   aria-pressed={isSpeaking}
                 >
                   {isSpeaking ? (
-                    <VolumeX className="h-4 w-4" aria-hidden="true" />
+                    <VolumeX className="h-4 w-4" />
                   ) : (
-                    <Volume2 className="h-4 w-4" aria-hidden="true" />
+                    <Volume2 className="h-4 w-4" />
                   )}
+
                   {isSpeaking ? "Stop" : "Listen"}
                 </Button>
               </div>
@@ -366,9 +499,9 @@ const AssistantMessage = memo(function AssistantMessage({
   );
 });
 
-// ==========================================
+// ======================================================
 // MAIN COMPONENT
-// ==========================================
+// ======================================================
 
 export default function StudentChat({
   user,
@@ -377,12 +510,24 @@ export default function StudentChat({
   onSend,
   token,
 }) {
+  // --------------------------------------
+  // State
+  // --------------------------------------
+
   const [question, setQuestion] = useState("");
   const [voiceLanguage, setVoiceLanguage] = useState("auto");
+
   const [detectedLanguage, setDetectedLanguage] = useState(null);
+
   const [voiceActive, setVoiceActive] = useState(false);
+
   const [voiceStatus, setVoiceStatus] = useState("idle");
+
   const [speakingId, setSpeakingId] = useState(null);
+
+  // --------------------------------------
+  // Refs
+  // --------------------------------------
 
   const onSendRef = useRef(onSend);
   const mountedRef = useRef(true);
@@ -418,6 +563,10 @@ export default function StudentChat({
 
   const canSend = !loading && !voiceActive && question.trim().length > 0;
 
+  // ==================================================
+  // HELPERS
+  // ==================================================
+
   function isCurrent(sessionId) {
     return (
       mountedRef.current &&
@@ -436,9 +585,9 @@ export default function StudentChat({
     }
   }
 
-  // ========================================
+  // ==================================================
   // AUDIO CLEANUP
-  // ========================================
+  // ==================================================
 
   function stopAudio() {
     audioControllerRef.current?.abort();
@@ -458,7 +607,9 @@ export default function StudentChat({
       audioUrlRef.current = null;
     }
 
-    if (mountedRef.current) setSpeakingId(null);
+    if (mountedRef.current) {
+      setSpeakingId(null);
+    }
   }
 
   function cleanupMicrophone() {
@@ -475,7 +626,7 @@ export default function StudentChat({
         try {
           recorder.stop();
         } catch {
-          /* already stopped */
+          // Already stopped
         }
       }
     }
@@ -485,12 +636,16 @@ export default function StudentChat({
     analyserRef.current = null;
 
     streamRef.current?.getTracks().forEach((track) => track.stop());
+
     streamRef.current = null;
 
     if (audioContextRef.current) {
       const context = audioContextRef.current;
       audioContextRef.current = null;
-      if (context.state !== "closed") context.close().catch(() => {});
+
+      if (context.state !== "closed") {
+        context.close().catch(() => {});
+      }
     }
   }
 
@@ -508,23 +663,21 @@ export default function StudentChat({
     }
   }
 
-  // ========================================
-  // TEXT-TO-SPEECH
-  // ========================================
+  // ==================================================
+  // TEXT TO SPEECH
+  // ==================================================
 
   async function speakAnswer(message, sessionId = null) {
     if (!token || !message) return false;
 
     stopAudio();
 
-    const text = String(message.content ?? message.answer ?? "")
-      .replace(/\[\d+\]/g, "")
-      .trim()
-      .slice(0, 2500);
+    const text = getSpeechText(message.content ?? message.answer ?? "");
 
     if (!text) return false;
 
     const language = getAnswerLanguage(message);
+
     const controller = new AbortController();
     audioControllerRef.current = controller;
 
@@ -558,35 +711,47 @@ export default function StudentChat({
 
         const finish = (value) => {
           if (settled) return;
+
           settled = true;
           resolve(value);
         };
 
         audioCancelRef.current = () => finish(false);
+
         audio.onended = () => finish(true);
+
         audio.onerror = () => {
           if (settled) return;
+
           settled = true;
+
           reject(new Error("Audio playback failed"));
         };
 
         audio.play().catch(reject);
       });
 
-      if (audioRef.current === audio) stopAudio();
+      if (audioRef.current === audio) {
+        stopAudio();
+      }
+
       return completed;
     } catch (error) {
       if (error.name !== "AbortError" && !controller.signal.aborted) {
         toast.error(error.message || "Unable to play the answer.");
       }
-      if (audioControllerRef.current === controller) stopAudio();
+
+      if (audioControllerRef.current === controller) {
+        stopAudio();
+      }
+
       return false;
     }
   }
 
-  // ========================================
-  // STT → RAG → TTS
-  // ========================================
+  // ==================================================
+  // SPEECH TO TEXT → CHAT → TEXT TO SPEECH
+  // ==================================================
 
   async function processRecording(blob, sessionId) {
     if (!isCurrent(sessionId)) return;
@@ -611,7 +776,9 @@ export default function StudentChat({
         transcription?.transcript || transcription?.text || "",
       ).trim();
 
-      if (!recognizedText) throw new Error("No speech was recognized.");
+      if (!recognizedText) {
+        throw new Error("No speech was recognized.");
+      }
 
       const language = resolveSpeechLanguage(
         transcription,
@@ -634,6 +801,7 @@ export default function StudentChat({
       }
 
       const played = await speakAnswer(answer, sessionId);
+
       if (!isCurrent(sessionId)) return;
 
       if (!played) {
@@ -641,8 +809,6 @@ export default function StudentChat({
         return;
       }
 
-      // Stop after the answer so the student can read it.
-      // Set AUTO_CONTINUE_VOICE = true to keep listening.
       if (AUTO_CONTINUE_VOICE) {
         await startListening(sessionId);
       } else {
@@ -650,14 +816,16 @@ export default function StudentChat({
       }
     } catch (error) {
       if (!isCurrent(sessionId)) return;
+
       toast.error(error.message || "Voice conversation failed.");
+
       stopConversation();
     }
   }
 
-  // ========================================
-  // RECORD UNTIL SILENCE
-  // ========================================
+  // ==================================================
+  // RECORDING UNTIL SILENCE
+  // ==================================================
 
   async function startListening(sessionId) {
     if (!isCurrent(sessionId)) return;
@@ -676,6 +844,7 @@ export default function StudentChat({
 
       if (!isCurrent(sessionId)) {
         stream.getTracks().forEach((track) => track.stop());
+
         return;
       }
 
@@ -688,20 +857,26 @@ export default function StudentChat({
       ].find((type) => MediaRecorder.isTypeSupported(type));
 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
       recorderRef.current = recorder;
       chunksRef.current = [];
 
       const AudioContextClass =
         window.AudioContext || window.webkitAudioContext;
+
       const context = new AudioContextClass();
+
       audioContextRef.current = context;
 
       const source = context.createMediaStreamSource(stream);
+
       sourceRef.current = source;
 
       const analyser = context.createAnalyser();
+
       analyser.fftSize = 2048;
       analyserRef.current = analyser;
+
       source.connect(analyser);
 
       const samples = new Uint8Array(analyser.fftSize);
@@ -709,14 +884,18 @@ export default function StudentChat({
       let speechStarted = false;
       let lastSpeechAt = 0;
       let completed = false;
+
       const startedAt = performance.now();
 
       recorder.ondataavailable = (event) => {
-        if (event.data?.size > 0) chunksRef.current.push(event.data);
+        if (event.data?.size > 0) {
+          chunksRef.current.push(event.data);
+        }
       };
 
       recorder.onstop = async () => {
         if (completed) return;
+
         completed = true;
 
         const blob = new Blob(chunksRef.current, {
@@ -733,17 +912,23 @@ export default function StudentChat({
       recorder.start(250);
 
       const finishRecording = () => {
-        if (recorder.state !== "inactive") recorder.stop();
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
       };
 
       const checkSpeech = (now) => {
-        if (!isCurrent(sessionId) || recorder.state !== "recording") return;
+        if (!isCurrent(sessionId) || recorder.state !== "recording") {
+          return;
+        }
 
         analyser.getByteTimeDomainData(samples);
 
         let sum = 0;
+
         for (let i = 0; i < samples.length; i++) {
           const value = (samples[i] - 128) / 128;
+
           sum += value * value;
         }
 
@@ -788,9 +973,9 @@ export default function StudentChat({
     }
   }
 
-  // ========================================
-  // CONTROLS
-  // ========================================
+  // ==================================================
+  // VOICE CONTROLS
+  // ==================================================
 
   async function toggleConversation() {
     if (activeRef.current) {
@@ -825,53 +1010,98 @@ export default function StudentChat({
       return;
     }
 
-    if (activeRef.current) stopConversation();
+    if (activeRef.current) {
+      stopConversation();
+    }
 
     await speakAnswer(message);
   }
 
+  // ==================================================
+  // EDIT AND RESEND QUESTION
+  // ==================================================
+
+  function editQuestion(message) {
+    if (loading || voiceActive) {
+      return;
+    }
+
+    const previousQuestion = String(message?.content ?? "");
+
+    setQuestion(previousQuestion);
+
+    textareaRef.current?.focus();
+  }
+
+  // ==================================================
+  // SUBMIT QUESTION
+  // ==================================================
+
   function submit(text = question) {
     const value = String(text || "").trim();
-    if (!value || loading || voiceActive) return;
+
+    if (!value || loading || voiceActive) {
+      return;
+    }
 
     const language = detectTypedLanguage(value);
+
     setDetectedLanguage(language);
 
     onSendRef.current(value, language, false);
+
     setQuestion("");
   }
 
-  // ========================================
-  // LIFECYCLE
-  // ========================================
+  // ==================================================
+  // SCROLLING
+  // ==================================================
 
-  // Scroll to the START of a new answer so the student reads it first.
   useEffect(() => {
-    if (!latestAssistantId || lastAnswerIdRef.current === latestAssistantId)
+    if (!latestAssistantId || lastAnswerIdRef.current === latestAssistantId) {
       return;
+    }
 
     const element = answerElementsRef.current[latestAssistantId];
+
     if (!element) return;
 
     lastAnswerIdRef.current = latestAssistantId;
-    element.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    element.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, [latestAssistantId]);
 
-  // Keep the student's own question and the "preparing" indicator in view.
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
 
     if (lastMessage?.role === "user" || loading) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      bottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     }
   }, [messages.length, loading]);
 
+  // ==================================================
+  // AUTO-RESIZE TEXTAREA
+  // ==================================================
+
   useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const element = textareaRef.current;
+
+    if (!element) return;
+
+    element.style.height = "auto";
+
+    element.style.height = `${element.scrollHeight}px`;
   }, [question]);
+
+  // ==================================================
+  // CLEANUP
+  // ==================================================
 
   useEffect(() => {
     mountedRef.current = true;
@@ -880,18 +1110,20 @@ export default function StudentChat({
       mountedRef.current = false;
       activeRef.current = false;
       sessionRef.current += 1;
+
       cleanupMicrophone();
       stopAudio();
     };
   }, []);
 
-  // ========================================
+  // ==================================================
   // RENDER
-  // ========================================
+  // ==================================================
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      {/* MESSAGES */}
+      {/* CHAT MESSAGES */}
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto w-full max-w-3xl space-y-5 px-3 py-4 sm:px-4 sm:py-6">
           {messages.length === 0 && !loading && (
@@ -900,7 +1132,12 @@ export default function StudentChat({
 
           {messages.map((message, index) =>
             message.role === "user" ? (
-              <UserMessage key={message.id ?? index} message={message} />
+              <UserMessage
+                key={message.id ?? index}
+                message={message}
+                onEdit={editQuestion}
+                loading={loading || voiceActive}
+              />
             ) : (
               <AssistantMessage
                 key={message.id ?? index}
@@ -921,10 +1158,12 @@ export default function StudentChat({
         </div>
       </ScrollArea>
 
-      {/* COMPOSER */}
+      {/* QUESTION COMPOSER */}
+
       <div className="shrink-0 border-t bg-background/95 px-3 pt-2 pb-[max(10px,env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4 sm:pt-3">
         <div className="mx-auto w-full max-w-3xl space-y-2">
-          {/* Language row */}
+          {/* LANGUAGE SELECTOR */}
+
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <label
@@ -933,18 +1172,22 @@ export default function StudentChat({
               >
                 Mic
               </label>
+
               <select
                 id="chat-language"
                 value={voiceLanguage}
                 disabled={voiceActive}
                 onChange={(event) => {
                   setVoiceLanguage(event.target.value);
+
                   stopAudio();
                 }}
                 className="h-8 rounded-lg border bg-background px-2 text-xs sm:h-9 sm:px-3 sm:text-sm"
               >
                 <option value="auto">Auto detect</option>
+
                 <option value="en-IN">English</option>
+
                 <option value="te-IN">తెలుగు</option>
               </select>
             </div>
@@ -956,7 +1199,8 @@ export default function StudentChat({
             )}
           </div>
 
-          {/* Input */}
+          {/* INPUT BOX */}
+
           <div
             className={cn(
               "flex items-end gap-1.5 rounded-2xl border bg-background p-1.5 shadow-sm transition-colors sm:gap-2 sm:p-2",
@@ -971,7 +1215,7 @@ export default function StudentChat({
               placeholder={
                 voiceActive
                   ? "Voice conversation is active…"
-                  : "Ask about admissions, fees…"
+                  : "Ask about SIETK courses, fees, placements…"
               }
               rows={1}
               enterKeyHint="send"
@@ -988,6 +1232,8 @@ export default function StudentChat({
               }}
             />
 
+            {/* VOICE BUTTON */}
+
             <Button
               type="button"
               size="icon"
@@ -1002,11 +1248,13 @@ export default function StudentChat({
               }
             >
               {voiceActive ? (
-                <Square className="h-4 w-4" aria-hidden="true" />
+                <Square className="h-4 w-4" />
               ) : (
-                <Mic className="h-4 w-4" aria-hidden="true" />
+                <Mic className="h-4 w-4" />
               )}
             </Button>
+
+            {/* SEND BUTTON */}
 
             <Button
               type="button"
@@ -1017,14 +1265,15 @@ export default function StudentChat({
               aria-label="Send question"
             >
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                <ArrowUp className="h-4 w-4" />
               )}
             </Button>
           </div>
 
-          {/* Status */}
+          {/* STATUS */}
+
           <p
             className="text-center text-[11px] text-muted-foreground sm:text-xs"
             aria-live="polite"
@@ -1035,7 +1284,7 @@ export default function StudentChat({
           {voiceActive && (
             <div className="flex justify-center">
               <Badge variant="secondary" className="gap-2">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
                 Voice conversation active
               </Badge>
             </div>
