@@ -159,6 +159,33 @@ FOLLOW-UP QUESTIONS:
 
 Return valid JSON only.
 
+
+SOURCE ACCURACY RULES:
+
+1. Prioritize official department pages and
+   verified, dated institutional records.
+
+2. When two sources disagree about a faculty
+   position, do not silently choose one.
+
+3. Identify the academic year or publication
+   date whenever available.
+
+4. Never describe a historical appointment
+   as the current appointment without evidence.
+
+5. Do not invent or modify source URLs.
+
+6. When information conflicts, explain the
+   conflict and suggest official verification.
+
+7. For placement questions, preserve the
+   requested company and academic year.
+
+8. For short follow-up questions, retain
+   relevant context from the recent conversation.
+
+
 If supported:
 {
   "found": true,
@@ -716,6 +743,82 @@ def answer_from_official_web(
 # MAIN CHAT SERVICE
 # =====================================================
 
+
+def resolve_placement_followup(
+    question: str,
+    history: list[dict],
+) -> str | None:
+    """
+    Preserve placement context for short
+    company-name follow-up questions.
+    """
+
+    company_names = {
+        "tcs": "TCS",
+        "infosys": "Infosys",
+        "wipro": "Wipro",
+        "accenture": "Accenture",
+        "capgemini": "Capgemini",
+        "cts": "CTS",
+        "cognizant": "Cognizant",
+        "ibm": "IBM",
+        "amazon": "Amazon",
+        "tech mahindra": "Tech Mahindra",
+    }
+
+    normalized = question.casefold().strip(" ?.!")
+
+    company = company_names.get(normalized)
+
+    if company is None:
+        return None
+
+    # Use recent conversation context, not
+    # an unrelated earlier conversation.
+    recent = history[-6:]
+
+    previous_user_questions = [
+        str(item.get("content", ""))
+        for item in recent
+        if item.get("role") == "user"
+    ]
+
+    placement_context = any(
+        re.search(
+            r"\b(placement|placements|placed|recruitment)\b",
+            item,
+            flags=re.IGNORECASE,
+        )
+        for item in previous_user_questions
+    )
+
+    if not placement_context:
+        return None
+
+    year = None
+
+    for item in reversed(previous_user_questions):
+        match = re.search(
+            r"\b(20\d{2})\b",
+            item,
+        )
+
+        if match:
+            year = match.group(1)
+            break
+
+    if year:
+        return (
+            f"How many students from SIETK "
+            f"were placed at {company} in {year}?"
+        )
+
+    return (
+        f"What placement information is "
+        f"available for {company} at SIETK?"
+    )
+
+
 def answer_question(
     db,
     college_id: int,
@@ -782,7 +885,24 @@ def answer_question(
         return create_response(OUT_OF_SCOPE_ANSWER)
 
     # 3. Resolve short follow-up questions for retrieval.
+
     retrieval_question = question
+
+    resolved_placement = resolve_placement_followup(
+        question,
+        history,
+    )
+
+    if resolved_placement:
+        retrieval_question = resolved_placement
+
+    elif history and len(question.split()) <= 10:
+        retrieval_question = make_web_search_query(
+            llm,
+            question,
+            history,
+        )
+
 
     if history and len(question.split()) <= 10:
         retrieval_question = make_web_search_query(
